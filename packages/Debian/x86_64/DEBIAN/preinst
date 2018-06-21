@@ -19,7 +19,7 @@
 ##--------------------------------------------------------------------
 ##
 ## @preinst DEBIAN/preinst
-## This script is used to execute post installation tasks.
+## This script is used to execute pre installation tasks.
 ##
 ## Author: Ivan Zoratti, Ashwin Gopalakrishnan
 ##

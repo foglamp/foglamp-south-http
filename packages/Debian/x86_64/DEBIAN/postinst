@@ -32,19 +32,10 @@ set_files_ownership () {
 }
 
 add_service () {
-    output=$(curl -sX POST http://localhost:8081/foglamp/service -d '{"name": "http_south", "type": "south", "plugin": "http_south"}')
-    service_id=$(echo $output | awk -F '"id": ' '{print $2}' | awk -F \" '{print $2}')
-    echo $service_id
-}
-
-enable_service () {
-    service_id=$1
-    echo $service_id
-    output=$(curl -X PUT -d '{"enabled": true}' http://localhost:8081/foglamp/schedule/$service_id)
+    output=$(curl -sX POST http://localhost:8081/foglamp/service -d '{"name": "http_south", "type": "south", "plugin": "http_south", "enabled": true}')
     echo $output
 }
 
 set_files_ownership
-SERVICE_ID=$(add_service)
-enable_service $SERVICE_ID
-echo "Http South plugin installed."
+add_service
+echo "Http South plugin is installed."
