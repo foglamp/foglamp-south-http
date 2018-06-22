@@ -110,7 +110,7 @@ mkdir "${package_name}"
 echo -n "Populating the package and updating version file..."
 cd "${package_name}"
 cp -R ${GIT_ROOT}/packages/Debian/${architecture}/* .
-sed -i "s/Version: 0.0/Version: $version/g" DEBIAN/control
+sed -i "s/Version: 1.0.0/Version: $version/g" DEBIAN/control
 sed -i "s/Depends: foglamp/Depends: foglamp (=$foglamp_version)/g" DEBIAN/control
 
 mkdir -p usr/local/foglamp
