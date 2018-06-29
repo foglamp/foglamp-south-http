@@ -209,26 +209,28 @@ class HttpSouthIngest(object):
                 raise web.HTTPServiceUnavailable(reason=message)
 
             try:
-                payload = await request.json()
+                payload_block = await request.json()
             except Exception:
-                raise ValueError('Payload must be a dictionary')
+                raise ValueError('Payload block must be a valid json')
 
-            asset = payload['asset']
-            timestamp = payload['timestamp']
-            key = payload['key']
+            for payload in payload_block:
+                asset = payload['asset']
+                timestamp = payload['timestamp']
+                key = payload['key']
 
-            # readings or sensor_values are optional
-            try:
-                readings = payload['readings']
-            except KeyError:
-                readings = payload['sensor_values']  # sensor_values is deprecated
+                # readings or sensor_values are optional
+                try:
+                    readings = payload['readings']
+                except KeyError:
+                    readings = payload['sensor_values']  # sensor_values is deprecated
 
-            # if optional then
-            # TODO: confirm, do we want to check this?
-            if not isinstance(readings, dict):
-                raise ValueError('readings must be a dictionary')
+                # if optional then
+                # TODO: confirm, do we want to check this?
+                if not isinstance(readings, dict):
+                    raise ValueError('readings must be a dictionary')
 
-            await Ingest.add_readings(asset=asset, timestamp=timestamp, key=key, readings=readings)
+                await Ingest.add_readings(asset=asset, timestamp=timestamp, key=key, readings=readings)
+            
         except (KeyError, ValueError, TypeError) as e:
             Ingest.increment_discarded_readings()
             _LOGGER.exception("%d: %s", web.HTTPBadRequest.status_code, str(e))
