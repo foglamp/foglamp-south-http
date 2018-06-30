@@ -290,7 +290,7 @@ class TestHttpSouthIngest(object):
     """
     @pytest.mark.asyncio
     async def test_render_post_reading_ok(self, loop):
-        data = """{
+        data = """[{
             "timestamp": "2017-01-02T01:02:03.23232Z-05:00",
             "asset": "sensor1",
             "key": "80a43623-ebe5-40d6-8d80-3f892da9b3b4",
@@ -301,7 +301,7 @@ class TestHttpSouthIngest(object):
                     "unit": "kelvin"
                 }
             }
-        }"""
+        }]"""
         with patch.object(Ingest, 'increment_discarded_readings', return_value=True) as ingest_discarded:
             with patch.object(Ingest, 'add_readings', return_value=asyncio.sleep(.1)) as ingest_add_readings:
                 with patch.object(Ingest, 'is_available', return_value=True) as ingest_is_available:
@@ -317,7 +317,7 @@ class TestHttpSouthIngest(object):
 
     @pytest.mark.asyncio
     async def test_render_post_sensor_values_ok(self, loop):
-        data = """{
+        data = """[{
             "timestamp": "2017-01-02T01:02:03.23232Z-05:00",
             "asset": "sensor1",
             "key": "80a43623-ebe5-40d6-8d80-3f892da9b3b4",
@@ -328,7 +328,7 @@ class TestHttpSouthIngest(object):
                     "unit": "kelvin"
                 }
             }
-        }"""
+        }]"""
         with patch.object(Ingest, 'increment_discarded_readings', return_value=True) as ingest_discarded:
             with patch.object(Ingest, 'add_readings', return_value=asyncio.sleep(.1)) as ingest_add_readings:
                 with patch.object(Ingest, 'is_available', return_value=True) as ingest_is_available:
@@ -343,9 +343,9 @@ class TestHttpSouthIngest(object):
             assert 1 == ingest_is_available.call_count
 
     @pytest.mark.asyncio
-    async def test_render_post_payload_not_dict(self, loop):
+    async def test_render_post_invalid_payload(self, loop):
         data = "blah"
-        msg = 'Payload must be a dictionary'
+        msg = 'Payload block must be a valid json'
         with patch.object(Ingest, 'increment_discarded_readings', return_value=True) as ingest_discarded:
             with patch.object(Ingest, 'is_available', return_value=True) as ingest_is_available:
                 with patch.object(http_south._LOGGER, 'exception') as log_exc:
@@ -361,7 +361,7 @@ class TestHttpSouthIngest(object):
 
     @pytest.mark.asyncio
     async def test_render_post_reading_is_available_false(self, loop):
-        data = """{
+        data = """[{
             "timestamp": "2017-01-02T01:02:03.23232Z-05:00",
             "asset": "sensor1",
             "key": "80a43623-ebe5-40d6-8d80-3f892da9b3b4",
@@ -372,7 +372,7 @@ class TestHttpSouthIngest(object):
                     "unit": "kelvin"
                 }
             }
-        }"""
+        }]"""
         msg = "{'busy': True}"
         with patch.object(Ingest, 'increment_discarded_readings', return_value=True) as ingest_discarded:
             with patch.object(Ingest, 'is_available', return_value=False) as ingest_is_available:
@@ -400,7 +400,7 @@ class TestHttpSouthIngest(object):
                     "unit": "kelvin"
                 }
         }"""
-        msg = 'Payload must be a dictionary'
+        msg = 'Payload block must be a valid json'
         with patch.object(Ingest, 'increment_discarded_readings', return_value=True) as ingest_discarded:
             with patch.object(Ingest, 'is_available', return_value=True) as ingest_is_available:
                 with patch.object(http_south._LOGGER, 'exception') as log_exc:
@@ -416,12 +416,12 @@ class TestHttpSouthIngest(object):
 
     @pytest.mark.asyncio
     async def test_render_post_reading_not_dict(self, loop):
-        data = """{
+        data = """[{
             "timestamp": "2017-01-02T01:02:03.23232Z-05:00",
             "asset": "sensor2",
             "key": "80a43623-ebe5-40d6-8d80-3f892da9b3b4",
             "readings": "500"
-        }"""
+        }]"""
         msg = 'readings must be a dictionary'
         with patch.object(Ingest, 'increment_discarded_readings', return_value=True) as ingest_discarded:
             with patch.object(Ingest, 'is_available', return_value=True) as ingest_is_available:
