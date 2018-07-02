@@ -68,7 +68,7 @@ def plugin_init(config):
     """Registers HTTP Listener handler to accept sensor readings
 
     Args:
-        config: JSON configuration document for the South device configuration category
+        config: JSON configuration document for the South plugin configuration category
     Returns:
         handle: JSON object to be used in future calls to the plugin
     Raises:
@@ -109,7 +109,7 @@ def plugin_start(data):
 def plugin_reconfigure(handle, new_config):
     """ Reconfigures the plugin
 
-    it should be called when the configuration of the plugin is changed during the operation of the South device service;
+    it should be called when the configuration of the plugin is changed during the operation of the South service;
     The new configuration category should be passed.
 
     Args:
@@ -137,13 +137,6 @@ def plugin_reconfigure(handle, new_config):
 
 
 def _plugin_stop(handle):
-    """ Stops the plugin doing required cleanup, to be called prior to the South device service being shut down.
-
-    Args:
-        handle: handle returned by the plugin initialisation call
-    Returns:
-    Raises:
-    """
     _LOGGER.info('Stopping South HTTP plugin.')
     try:
         app = handle['app']
@@ -162,7 +155,7 @@ def _plugin_stop(handle):
 
 
 def plugin_shutdown(handle):
-    """ Shutdowns the plugin doing required cleanup, to be called prior to the South device service being shut down.
+    """ Shutdowns the plugin doing required cleanup, to be called prior to the South service being shut down.
 
     Args:
         handle: handle returned by the plugin initialisation call
