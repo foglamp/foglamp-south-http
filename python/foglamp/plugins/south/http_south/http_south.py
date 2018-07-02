@@ -173,7 +173,6 @@ def plugin_shutdown(handle):
     _LOGGER.info('South HTTP plugin shut down.')
 
 
-# TODO: Implement FOGL-701 (implement AuditLogger which logs to DB and can be used by all ) for this class
 class HttpSouthIngest(object):
     """Handles incoming sensor readings from HTTP Listener"""
 
@@ -183,25 +182,23 @@ class HttpSouthIngest(object):
 
         Args:
             request:
-                The payload decodes to JSON similar to the following:
+                The payload block decodes to JSON similar to the following:
 
                 .. code-block:: python
 
-                    {
+                    [ {
                         "timestamp": "2017-01-02T01:02:03.23232Z-05:00",
                         "asset": "pump1",
                         "key": "80a43623-ebe5-40d6-8d80-3f892da9b3b4",
                         "readings": {"humidity": 0.0, "temperature": -40.0}
-                        }
-                    }
+                      },
+                      ...
+                    ]
         Example:
-            curl -X POST http://localhost:6683/sensor-reading -d '{"timestamp": "2017-01-02T01:02:03.23232Z-05:00", "asset": "pump1", "key": "80a43623-ebe5-40d6-8d80-3f892da9b3b4", "readings": {"humidity": 0.0, "temperature": -40.0}}'
+            curl -X POST http://localhost:6683/sensor-reading -d '[{"timestamp": "2017-01-02T01:02:03.23232Z-05:00",
+                "asset": "pump1", "key": "80a43623-ebe5-40d6-8d80-3f892da9b3b4", "readings": {"humidity": 0.0, "temperature": -40.0}}]'
         """
-        # TODO: The payload is documented at
-        # https://docs.google.com/document/d/1rJXlOqCGomPKEKx2ReoofZTXQt9dtDiW_BHU7FYsj-k/edit#
-        # and will be moved to a .rst file
 
-        # TODO: Decide upon the correct format of message
         message = {'result': 'success'}
         try:
             if not Ingest.is_available():
