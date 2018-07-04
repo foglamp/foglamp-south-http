@@ -68,7 +68,7 @@ def plugin_init(config):
     """Registers HTTP Listener handler to accept sensor readings
 
     Args:
-        config: JSON configuration document for the South device configuration category
+        config: JSON configuration document for the South plugin configuration category
     Returns:
         handle: JSON object to be used in future calls to the plugin
     Raises:
@@ -109,7 +109,7 @@ def plugin_start(data):
 def plugin_reconfigure(handle, new_config):
     """ Reconfigures the plugin
 
-    it should be called when the configuration of the plugin is changed during the operation of the South device service;
+    it should be called when the configuration of the plugin is changed during the operation of the South service;
     The new configuration category should be passed.
 
     Args:
@@ -137,13 +137,6 @@ def plugin_reconfigure(handle, new_config):
 
 
 def _plugin_stop(handle):
-    """ Stops the plugin doing required cleanup, to be called prior to the South device service being shut down.
-
-    Args:
-        handle: handle returned by the plugin initialisation call
-    Returns:
-    Raises:
-    """
     _LOGGER.info('Stopping South HTTP plugin.')
     try:
         app = handle['app']
@@ -162,7 +155,7 @@ def _plugin_stop(handle):
 
 
 def plugin_shutdown(handle):
-    """ Shutdowns the plugin doing required cleanup, to be called prior to the South device service being shut down.
+    """ Shutdowns the plugin doing required cleanup, to be called prior to the South service being shut down.
 
     Args:
         handle: handle returned by the plugin initialisation call
@@ -173,7 +166,6 @@ def plugin_shutdown(handle):
     _LOGGER.info('South HTTP plugin shut down.')
 
 
-# TODO: Implement FOGL-701 (implement AuditLogger which logs to DB and can be used by all ) for this class
 class HttpSouthIngest(object):
     """Handles incoming sensor readings from HTTP Listener"""
 
@@ -183,25 +175,23 @@ class HttpSouthIngest(object):
 
         Args:
             request:
-                The payload decodes to JSON similar to the following:
+                The payload block decodes to JSON similar to the following:
 
                 .. code-block:: python
 
-                    {
+                    [ {
                         "timestamp": "2017-01-02T01:02:03.23232Z-05:00",
                         "asset": "pump1",
                         "key": "80a43623-ebe5-40d6-8d80-3f892da9b3b4",
                         "readings": {"humidity": 0.0, "temperature": -40.0}
-                        }
-                    }
+                      },
+                      ...
+                    ]
         Example:
-            curl -X POST http://localhost:6683/sensor-reading -d '{"timestamp": "2017-01-02T01:02:03.23232Z-05:00", "asset": "pump1", "key": "80a43623-ebe5-40d6-8d80-3f892da9b3b4", "readings": {"humidity": 0.0, "temperature": -40.0}}'
+            curl -X POST http://localhost:6683/sensor-reading -d '[{"timestamp": "2017-01-02T01:02:03.23232Z-05:00",
+                "asset": "pump1", "key": "80a43623-ebe5-40d6-8d80-3f892da9b3b4", "readings": {"humidity": 0.0, "temperature": -40.0}}]'
         """
-        # TODO: The payload is documented at
-        # https://docs.google.com/document/d/1rJXlOqCGomPKEKx2ReoofZTXQt9dtDiW_BHU7FYsj-k/edit#
-        # and will be moved to a .rst file
 
-        # TODO: Decide upon the correct format of message
         message = {'result': 'success'}
         try:
             if not Ingest.is_available():
