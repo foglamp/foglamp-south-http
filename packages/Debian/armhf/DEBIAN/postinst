@@ -32,7 +32,7 @@ set_files_ownership () {
 }
 
 add_service () {
-    output=$(curl -sX POST http://localhost:8081/foglamp/service -d '{"name": "HTTP South", "type": "south", "plugin": "http_south", "enabled": true}')
+    output=$(curl -sX POST http://localhost:8081/foglamp/service -d '{"name": "http_south", "type": "south", "plugin": "http_south", "enabled": true}')
     echo $output
 }
 
