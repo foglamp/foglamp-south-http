@@ -119,7 +119,7 @@ def plugin_reconfigure(handle, new_config):
         new_handle: new handle to be used in the future calls
     Raises:
     """
-    _LOGGER.info("Old config for HTTP_SOUTH plugin {} \n new config {}".format(handle, new_config))
+    _LOGGER.info("Old config for HTTP south plugin {} \n new config {}".format(handle, new_config))
 
     # Find diff between old config and new config
     diff = utils.get_diff(handle, new_config)
@@ -129,7 +129,7 @@ def plugin_reconfigure(handle, new_config):
         _plugin_stop(handle)
         new_handle = plugin_init(new_config)
         new_handle['restart'] = 'yes'
-        _LOGGER.info("Restarting HTTP_SOUTH plugin due to change in configuration keys [{}]".format(', '.join(diff)))
+        _LOGGER.info("Restarting HTTP south plugin due to change in configuration keys [{}]".format(', '.join(diff)))
     else:
         new_handle = copy.deepcopy(handle)
         new_handle['restart'] = 'no'
@@ -207,6 +207,11 @@ class HttpSouthIngest(object):
                 asset = payload['asset']
                 timestamp = payload['timestamp']
                 key = payload['key']
+
+                # HOTFIX: To ingest readings sent from foglamp sending process
+                if not timestamp.rfind("+") == -1:
+                    timestamp = timestamp + ":00"
+
 
                 # readings or sensor_values are optional
                 try:
