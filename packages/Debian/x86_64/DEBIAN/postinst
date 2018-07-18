@@ -21,7 +21,7 @@
 ## @postinst DEBIAN/postinst
 ## This script is used to execute post installation tasks.
 ##
-## Author: Ivan Zoratti
+## Author: Vaibhav Singhal
 ##
 ##--------------------------------------------------------------------
 
@@ -32,7 +32,7 @@ set_files_ownership () {
 }
 
 add_service () {
-    output=$(curl -sX POST http://localhost:8081/foglamp/service -d '{"name": "http_south", "type": "south", "plugin": "http_south", "enabled": true}')
+    output=$(curl -sX POST http://localhost:8081/foglamp/service -d '{"name": "HTTP SOUTH", "type": "south", "plugin": "http_south", "enabled": true}')
     echo $output
 }
 
