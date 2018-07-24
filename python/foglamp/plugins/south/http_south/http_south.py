@@ -7,6 +7,9 @@
 """HTTP Listener handler for sensor readings"""
 import asyncio
 import copy
+import os
+import ssl
+import logging
 
 from aiohttp import web
 
@@ -20,7 +23,10 @@ __copyright__ = "Copyright (c) 2017 OSIsoft, LLC"
 __license__ = "Apache 2.0"
 __version__ = "${VERSION}"
 
-_LOGGER = logger.setup(__name__, level=20)
+_LOGGER = logger.setup(__name__, level=logging.INFO)
+
+_FOGLAMP_DATA = os.getenv("FOGLAMP_DATA", default=None)
+_FOGLAMP_ROOT = os.getenv("FOGLAMP_ROOT", default='/usr/local/foglamp')
 
 _CONFIG_CATEGORY_NAME = 'HTTP_SOUTH'
 _CONFIG_CATEGORY_DESCRIPTION = 'South Plugin HTTP Listener'
@@ -35,6 +41,22 @@ _DEFAULT_CONFIG = {
         'type': 'integer',
         'default': '6683',
     },
+    'httpsPort': {
+        'description': 'Port to accept HTTPS connections on',
+        'type': 'integer',
+        'default': '6684'
+    },
+    'enableHttp': {
+        'description': 'Enable HTTP (Set false to use HTTPS)',
+        'type': 'boolean',
+        'default': 'true'
+    },
+    'certificateName': {
+        'description': 'Certificate file name',
+        'type': 'string',
+        'default': 'foglamp'
+    },
+
     'host': {
         'description': 'Address to accept data on',
         'type': 'string',
@@ -55,7 +77,7 @@ _DEFAULT_CONFIG = {
 
 def plugin_info():
     return {
-            'name': 'http_south',
+            'name': 'HTTP South Listener',
             'version': '1.0',
             'mode': 'async',
             'type': 'south',
@@ -88,7 +110,20 @@ def plugin_start(data):
         app = web.Application(middlewares=[middleware.error_middleware])
         app.router.add_route('POST', '/{}'.format(uri), HttpSouthIngest.render_post)
         handler = app.make_handler()
-        server_coro = loop.create_server(handler, host, port)
+
+        # SSL context
+        ssl_ctx = None
+
+        is_https = True if data['enableHttp']['value'] == 'false' else False
+        if is_https:
+            port = data['httpsPort']['value']
+            cert_name =  data['certificateName']['value']
+            ssl_ctx = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
+            cert, key = get_certificate(cert_name)
+            _LOGGER.info('Loading TLS certificate %s and key %s', cert, key)
+            ssl_ctx.load_cert_chain(cert, key)
+
+        server_coro = loop.create_server(handler, host, port, ssl=ssl_ctx)
         future = asyncio.ensure_future(server_coro)
 
         data['app'] = app
@@ -125,13 +160,14 @@ def plugin_reconfigure(handle, new_config):
     diff = utils.get_diff(handle, new_config)
 
     # Plugin should re-initialize and restart if key configuration is changed
-    if 'port' in diff or 'host' in diff or 'management_host' in diff:
+    if 'port' in diff or 'httpsPort' in diff or 'certificateName' in diff or 'enableHttp' in diff \
+            or 'host' in diff or 'management_host' in diff:
         _plugin_stop(handle)
         new_handle = plugin_init(new_config)
         new_handle['restart'] = 'yes'
         _LOGGER.info("Restarting HTTP south plugin due to change in configuration keys [{}]".format(', '.join(diff)))
     else:
-        new_handle = copy.deepcopy(handle)
+        new_handle = copy.deepcopy(new_config)
         new_handle['restart'] = 'no'
     return new_handle
 
@@ -165,6 +201,27 @@ def plugin_shutdown(handle):
     _plugin_stop(handle)
     _LOGGER.info('South HTTP plugin shut down.')
 
+
+
+def get_certificate(cert_name):
+
+    if _FOGLAMP_DATA:
+        certs_dir = os.path.expanduser(_FOGLAMP_DATA + '/etc/certs')
+    else:
+        certs_dir = os.path.expanduser(_FOGLAMP_ROOT + '/data/etc/certs')
+
+    cert = certs_dir + '/{}.cert'.format(cert_name)
+    key = certs_dir + '/{}.key'.format(cert_name)
+
+    if not os.path.isfile(cert) or not os.path.isfile(key):
+        _LOGGER.warning("%s certificate files are missing. Hence using default certificate.", cert_name)
+        cert = certs_dir + '/foglamp.cert'
+        key = certs_dir + '/foglamp.key'
+        if not os.path.isfile(cert) or not os.path.isfile(key):
+            _LOGGER.error("Certificates are missing")
+            raise RuntimeError
+
+    return cert, key
 
 class HttpSouthIngest(object):
     """Handles incoming sensor readings from HTTP Listener"""
