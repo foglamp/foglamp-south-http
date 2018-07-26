@@ -66,11 +66,6 @@ _DEFAULT_CONFIG = {
         'description': 'URI to accept data on',
         'type': 'string',
         'default': 'sensor-reading',
-    },
-    'management_host': {
-        'description': 'Management host',
-        'type': 'string',
-        'default': '127.0.0.1',
     }
 }
 
