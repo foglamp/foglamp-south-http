@@ -18,35 +18,24 @@
 
 ##--------------------------------------------------------------------
 ##
-## @preinst DEBIAN/preinst
-## This script is used to execute pre installation tasks.
+## @postinst DEBIAN/postinst
+## This script is used to execute post installation tasks.
 ##
-## Author: Ivan Zoratti, Ashwin Gopalakrishnan
+## Author: Vaibhav Singhal
 ##
 ##--------------------------------------------------------------------
 
 set -e
-get_foglamp_script () {
-    foglamp_script=$(dpkg -L foglamp | grep 'foglamp/bin/foglamp$')
-    echo $foglamp_script
+
+set_files_ownership () {
+    chown -R root:root /usr/local/foglamp/python/foglamp/plugins/south/http_south
 }
 
-is_foglamp_running () {
-    set +e
-    foglamp_script=$(get_foglamp_script)
-    foglamp_status_output=$($foglamp_script status 2>&1 | grep 'FogLAMP Uptime')
-    rc=$((!$?))
-    echo $rc
-    set -e
+add_service () {
+    output=$(curl -sX POST http://localhost:8081/foglamp/service -d '{"name": "HTTP SOUTH", "type": "south", "plugin": "http_south", "enabled": true}')
+    echo ${output}
 }
 
-# main
-
-# exit if foglamp is not running
-IS_FOGLAMP_RUNNING=$(is_foglamp_running)
-if [ "$IS_FOGLAMP_RUNNING" -eq "0" ]
-then
-    echo "*** ERROR. FogLAMP is currently not running. Start FogLAMP and try again. ***"
-    exit 1
-fi
-
+set_files_ownership
+add_service
+echo "Http South plugin is installed."

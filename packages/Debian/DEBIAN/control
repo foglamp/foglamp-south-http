@@ -2,7 +2,7 @@ Package: foglamp-south-http
 Version: 1.0.0
 Section: devel
 Priority: optional
-Architecture: armhf 
+Architecture: all
 Depends: foglamp
 Conflicts:
 Maintainer: Dianomic Systems, Inc. <info@dianomic.com>
