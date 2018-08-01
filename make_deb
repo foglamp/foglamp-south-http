@@ -22,77 +22,56 @@
 set -e
 
 GIT_ROOT=`pwd`    # The script must be executed from the root git directory
-architecture="none"
-usage="$(basename "$0") {x86|arm} [clean|cleanall]
+usage="$(basename "$0") help [clean|cleanall]
 This script is used to create the Debian package of foglamp http_south
 
 Arguments:
- x86      - Build an x86_64 package
- arm      - Build an armhf package
+ help     - Display this help text
  clean    - Remove all the old versions saved in format .XXXX
  cleanall - Remove all the versions, including the last one"
 
-if [ $# -gt 0 ]
-then
-    for i in "$@"
-    do
-      case "$i" in
-          x86)
-              architecture="x86_64"
-              shift
-              ;;
-          arm)
-              architecture="armhf"
-              shift
-              ;;
-          clean)
-              echo -n "Cleaning the build folder from older versions..."
-              find "${GIT_ROOT}/packages/Debian/build" -maxdepth 1 | grep '.*\.[0-9][0-9][0-9][0-9]' | xargs rm -rf
-              echo "Done."
-              shift
-              ;;
-          cleanall)
-              if [ -d "${GIT_ROOT}/packages/Debian/build" ]; then
-                echo -n "Cleaning the build folder..."
-                rm -rf ${GIT_ROOT}/packages/Debian/build/*
-                echo "Done."
-              else
-                echo "No build folder, skipping cleanall"
-              fi
-              shift
-              ;;
-          help)
-              echo "${usage}"
-              exit 1
-              ;;
-          *)
-            echo "Unrecognized option: $i"
-            exit 1
-            ;;
-      esac
-    done
-else
-  echo "See help and select the architecture to use, *x86* or *arm*"
-fi
 
-# If the architecture has not been defined, then the script is complete
-if [[ "$architecture" == "none" ]]; then
-  # echo "${usage}"
-  exit 0
-fi
+for i in "$@"
+do
+  case "$i" in
+      clean)
+          echo -n "Cleaning the build folder from older versions..."
+          find "${GIT_ROOT}/packages/build" -maxdepth 1 | grep '.*\.[0-9][0-9][0-9][0-9]' | xargs rm -rf
+          echo "Done."
+          exit 0
+          ;;
+      cleanall)
+          if [ -d "${GIT_ROOT}/packages/build" ]; then
+            echo -n "Cleaning the build folder..."
+            rm -rf ${GIT_ROOT}/packages/build/*
+            echo "Done."
+          else
+            echo "No build folder, skipping cleanall"
+          fi
+          exit 0
+          ;;
+      help)
+          echo "${usage}"
+          exit 0
+          ;;
+      *)
+        echo "Unrecognized option: $i"
+        exit 1
+        ;;
+  esac
+done
 
 version=`cat ${GIT_ROOT}/VERSION.south.http | tr -d ' ' | grep 'foglamp_south_http_version=' | head -1 | sed -e 's/\(.*\)=\(.*\)/\2/g'`
 foglamp_version=`cat ${GIT_ROOT}/VERSION.south.http | tr -d ' ' | grep 'foglamp_version' | head -1 | sed -e 's/\(.*\)version\(.*\)/\2/g'`
-BUILD_ROOT="${GIT_ROOT}/packages/Debian/build"
+BUILD_ROOT="${GIT_ROOT}/packages/build"
 
 # Final package name
-package_name="foglamp-south-http-${version}-${architecture}"
+package_name="foglamp-south-http-${version}"
 
 # Print the summary of findings
 echo "The package root directory is         : ${GIT_ROOT}"
 echo "The FogLAMP south http version is     : ${version}"
 echo "The package will be built in          : ${BUILD_ROOT}"
-echo "The architecture is set as            : ${architecture}"
 echo "The package name is                   : ${package_name}"
 echo
 
@@ -118,7 +97,7 @@ mkdir "${package_name}"
 # First with files common to all pla
 echo -n "Populating the package and updating version file..."
 cd "${package_name}"
-cp -R ${GIT_ROOT}/packages/Debian/${architecture}/* .
+cp -R ${GIT_ROOT}/packages/Debian/* .
 sed -i "s/Version: 1.0.0/Version: ${version}/g" DEBIAN/control
 sed -i "s/Depends: foglamp/Depends: foglamp (${foglamp_version})/g" DEBIAN/control
 

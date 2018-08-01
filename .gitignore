@@ -9,7 +9,7 @@
 *.idea
 
 # Build
-packages/Debian/build/
+packages/build/
 
 # Compiled Object files
 *.pyc
