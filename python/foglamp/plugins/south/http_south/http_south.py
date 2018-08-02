@@ -260,6 +260,9 @@ class HttpSouthIngest(object):
             except Exception:
                 raise ValueError('Payload block must be a valid json')
 
+            if type(payload_block) is not list:
+                raise ValueError('Payload block must be a valid list')
+
             for payload in payload_block:
                 asset = payload['asset']
                 timestamp = payload['timestamp']
@@ -285,8 +288,8 @@ class HttpSouthIngest(object):
             
         except (KeyError, ValueError, TypeError) as e:
             Ingest.increment_discarded_readings()
-            _LOGGER.exception("%d: %s", web.HTTPBadRequest.status_code, str(e))
-            raise web.HTTPBadRequest(reason=str(e))
+            _LOGGER.exception("%d: %s", web.HTTPBadRequest.status_code, e)
+            raise web.HTTPBadRequest(reason=e)
         except Exception as ex:
             Ingest.increment_discarded_readings()
             _LOGGER.exception("%d: %s", web.HTTPInternalServerError.status_code, str(ex))
