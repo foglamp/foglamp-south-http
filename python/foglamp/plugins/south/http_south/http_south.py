@@ -66,11 +66,6 @@ _DEFAULT_CONFIG = {
         'description': 'URI to accept data on',
         'type': 'string',
         'default': 'sensor-reading',
-    },
-    'management_host': {
-        'description': 'Management host',
-        'type': 'string',
-        'default': '127.0.0.1',
     }
 }
 
@@ -160,8 +155,7 @@ def plugin_reconfigure(handle, new_config):
     diff = utils.get_diff(handle, new_config)
 
     # Plugin should re-initialize and restart if key configuration is changed
-    if 'port' in diff or 'httpsPort' in diff or 'certificateName' in diff or 'enableHttp' in diff \
-            or 'host' in diff or 'management_host' in diff:
+    if 'port' in diff or 'httpsPort' in diff or 'certificateName' in diff or 'enableHttp' in diff or 'host' in diff:
         _plugin_stop(handle)
         new_handle = plugin_init(new_config)
         new_handle['restart'] = 'yes'
