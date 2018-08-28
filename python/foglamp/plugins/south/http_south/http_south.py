@@ -162,7 +162,7 @@ def plugin_reconfigure(handle, new_config):
 
     # Plugin should re-initialize and restart if key configuration is changed
     if 'port' in diff or 'httpsPort' in diff or 'certificateName' in diff or 'enableHttp' in diff or 'host' in diff:
-        _plugin_stop(handle)
+        plugin_shutdown(handle)
         new_handle = plugin_init(new_config)
         new_handle['restart'] = 'yes'
         _LOGGER.info("Restarting HTTP south plugin due to change in configuration keys [{}]".format(', '.join(diff)))
