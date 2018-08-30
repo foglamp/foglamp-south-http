@@ -34,38 +34,44 @@ _DEFAULT_CONFIG = {
     'plugin': {
          'description': 'HTTP South Plugin',
          'type': 'string',
-         'default': 'http_south'
+         'default': 'http_south',
+         'readonly': 'true'
     },
     'port': {
         'description': 'Port to listen on',
         'type': 'integer',
         'default': '6683',
+        'order': '2'
     },
     'httpsPort': {
         'description': 'Port to accept HTTPS connections on',
         'type': 'integer',
-        'default': '6684'
+        'default': '6684',
+        'order': '5'
     },
     'enableHttp': {
         'description': 'Enable HTTP (Set false to use HTTPS)',
         'type': 'boolean',
-        'default': 'true'
+        'default': 'true',
+        'order': '4'
     },
     'certificateName': {
         'description': 'Certificate file name',
         'type': 'string',
-        'default': 'foglamp'
+        'default': 'foglamp',
+        'order': '6'
     },
-
     'host': {
         'description': 'Address to accept data on',
         'type': 'string',
         'default': '0.0.0.0',
+        'order': '1'
     },
     'uri': {
         'description': 'URI to accept data on',
         'type': 'string',
         'default': 'sensor-reading',
+        'order': '3'
     }
 }
 
@@ -156,7 +162,7 @@ def plugin_reconfigure(handle, new_config):
 
     # Plugin should re-initialize and restart if key configuration is changed
     if 'port' in diff or 'httpsPort' in diff or 'certificateName' in diff or 'enableHttp' in diff or 'host' in diff:
-        _plugin_stop(handle)
+        plugin_shutdown(handle)
         new_handle = plugin_init(new_config)
         new_handle['restart'] = 'yes'
         _LOGGER.info("Restarting HTTP south plugin due to change in configuration keys [{}]".format(', '.join(diff)))
