@@ -37,23 +37,29 @@ _DEFAULT_CONFIG = {
         'default': 'http_south',
         'readonly': 'true'
     },
-    'assetNamePrefix': {
-        'description': 'Asset prefix',
+    'host': {
+        'description': 'Address to accept data on',
         'type': 'string',
-        'default': "http-",
-        'order': "1"
+        'default': '0.0.0.0',
+        'order': '1'
     },
     'port': {
         'description': 'Port to listen on',
         'type': 'integer',
         'default': '6683',
+        'order': '2'
+    },
+    'uri': {
+        'description': 'URI to accept data on',
+        'type': 'string',
+        'default': 'sensor-reading',
         'order': '3'
     },
-    'httpsPort': {
-        'description': 'Port to accept HTTPS connections on',
-        'type': 'integer',
-        'default': '6684',
-        'order': '6'
+    'assetNamePrefix': {
+        'description': 'Asset name prefix',
+        'type': 'string',
+        'default': 'http-',
+        'order': '4'
     },
     'enableHttp': {
         'description': 'Enable HTTP (Set false to use HTTPS)',
@@ -61,23 +67,17 @@ _DEFAULT_CONFIG = {
         'default': 'true',
         'order': '5'
     },
+    'httpsPort': {
+        'description': 'Port to accept HTTPS connections on',
+        'type': 'integer',
+        'default': '6684',
+        'order': '6'
+    },
     'certificateName': {
         'description': 'Certificate file name',
         'type': 'string',
         'default': 'foglamp',
         'order': '7'
-    },
-    'host': {
-        'description': 'Address to accept data on',
-        'type': 'string',
-        'default': '0.0.0.0',
-        'order': '2'
-    },
-    'uri': {
-        'description': 'URI to accept data on',
-        'type': 'string',
-        'default': 'sensor-reading',
-        'order': '4'
     }
 }
 
