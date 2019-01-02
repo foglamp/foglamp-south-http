@@ -32,7 +32,7 @@ _CONFIG_CATEGORY_NAME = 'HTTP_SOUTH'
 _CONFIG_CATEGORY_DESCRIPTION = 'South Plugin HTTP Listener'
 _DEFAULT_CONFIG = {
     'plugin': {
-        'description': 'HTTP South Plugin',
+        'description': 'HTTP Listener South Plugin',
         'type': 'string',
         'default': 'http_south',
         'readonly': 'true'
@@ -41,43 +41,50 @@ _DEFAULT_CONFIG = {
         'description': 'Address to accept data on',
         'type': 'string',
         'default': '0.0.0.0',
-        'order': '1'
+        'order': '1',
+        'displayName': 'Host'
     },
     'port': {
         'description': 'Port to listen on',
         'type': 'integer',
         'default': '6683',
-        'order': '2'
+        'order': '2',
+        'displayName': 'Port'
     },
     'uri': {
         'description': 'URI to accept data on',
         'type': 'string',
         'default': 'sensor-reading',
-        'order': '3'
+        'order': '3',
+        'displayName': 'URI'
     },
     'assetNamePrefix': {
         'description': 'Asset name prefix',
         'type': 'string',
         'default': 'http-',
-        'order': '4'
+        'order': '4',
+        'displayName': 'Asset Name Prefix'
     },
     'enableHttp': {
         'description': 'Enable HTTP (Set false to use HTTPS)',
         'type': 'boolean',
         'default': 'true',
-        'order': '5'
+        'order': '5',
+        'displayName': 'Enable Http'
     },
     'httpsPort': {
         'description': 'Port to accept HTTPS connections on',
         'type': 'integer',
         'default': '6684',
-        'order': '6'
+        'order': '6',
+        'displayName': 'Https Port'
     },
     'certificateName': {
         'description': 'Certificate file name',
         'type': 'string',
         'default': 'foglamp',
-        'order': '7'
+        'order': '7',
+        'displayName': 'Certificate Name'
     }
 }
 
