@@ -17,7 +17,7 @@ from foglamp.common import logger
 from foglamp.common.web import middleware
 from foglamp.plugins.common import utils
 from foglamp.services.south.ingest import Ingest
-import ingest
+import async_ingest
 
 
 __author__ = "Amarendra K Sinha"
@@ -323,7 +323,7 @@ class HttpSouthIngest(object):
                     'key': key,
                     'readings': readings
                 }
-                ingest.ingest_callback(c_callback, c_ingest_ref, data)
+                async_ingest.ingest_callback(c_callback, c_ingest_ref, data)
         except (KeyError, ValueError, TypeError) as e:
             _LOGGER.exception("%d: %s", web.HTTPBadRequest.status_code, e)
             raise web.HTTPBadRequest(reason=e)
