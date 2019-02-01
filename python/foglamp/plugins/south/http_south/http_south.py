@@ -10,13 +10,15 @@ import copy
 import os
 import ssl
 import logging
-
+from threading import Thread
 from aiohttp import web
 
 from foglamp.common import logger
 from foglamp.common.web import middleware
 from foglamp.plugins.common import utils
 from foglamp.services.south.ingest import Ingest
+import async_ingest
+
 
 __author__ = "Amarendra K Sinha"
 __copyright__ = "Copyright (c) 2017 Dianomic Systems"
@@ -24,7 +26,9 @@ __license__ = "Apache 2.0"
 __version__ = "${VERSION}"
 
 _LOGGER = logger.setup(__name__, level=logging.INFO)
-
+c_callback = None
+c_ingest_ref = None
+loop = None
 _FOGLAMP_DATA = os.getenv("FOGLAMP_DATA", default=None)
 _FOGLAMP_ROOT = os.getenv("FOGLAMP_ROOT", default='/usr/local/foglamp')
 
@@ -92,7 +96,7 @@ _DEFAULT_CONFIG = {
 def plugin_info():
     return {
         'name': 'HTTP South Listener',
-        'version': '1.0',
+        'version': '2.0',
         'mode': 'async',
         'type': 'south',
         'interface': '1.0',
@@ -109,21 +113,24 @@ def plugin_init(config):
         handle: JSON object to be used in future calls to the plugin
     Raises:
     """
-    handle = config
+    handle = copy.deepcopy(config)
     return handle
 
 
 def plugin_start(data):
+    global loop
+    _LOGGER.info("plugin_start called")
+
+    loop = asyncio.new_event_loop()
     try:
         host = data['host']['value']
         port = data['port']['value']
         uri = data['uri']['value']
 
-        loop = asyncio.get_event_loop()
         http_south_ingest = HttpSouthIngest(config=data)
-        app = web.Application(middlewares=[middleware.error_middleware])
+        app = web.Application(middlewares=[middleware.error_middleware], loop=loop)
         app.router.add_route('POST', '/{}'.format(uri), http_south_ingest.render_post)
-        handler = app.make_handler()
+        handler = app.make_handler(loop=loop)
 
         # SSL context
         ssl_ctx = None
@@ -138,7 +145,7 @@ def plugin_start(data):
             ssl_ctx.load_cert_chain(cert, key)
 
         server_coro = loop.create_server(handler, host, port, ssl=ssl_ctx)
-        future = asyncio.ensure_future(server_coro)
+        future = asyncio.ensure_future(server_coro, loop=loop)
 
         data['app'] = app
         data['handler'] = handler
@@ -149,8 +156,14 @@ def plugin_start(data):
             """ <Server sockets=
             [<socket.socket fd=17, family=AddressFamily.AF_INET, type=2049,proto=6, laddr=('0.0.0.0', 6683)>]>"""
             data['server'] = f.result()
-
         future.add_done_callback(f_callback)
+
+        def run():
+            global loop
+            loop.run_forever()
+
+        t = Thread(target=run)
+        t.start()
     except Exception as e:
         _LOGGER.exception(str(e))
 
@@ -168,37 +181,35 @@ def plugin_reconfigure(handle, new_config):
         new_handle: new handle to be used in the future calls
     Raises:
     """
+    global loop
     _LOGGER.info("Old config for HTTP south plugin {} \n new config {}".format(handle, new_config))
 
-    # Find diff between old config and new config
-    diff = utils.get_diff(handle, new_config)
+    # plugin_shutdown
+    plugin_shutdown(handle)
 
-    # Plugin should re-initialize and restart if key configuration is changed
-    if 'port' in diff or 'httpsPort' in diff or 'certificateName' in diff \
-            or 'enableHttp' in diff or 'host' in diff or 'assetNamePrefix' in diff:
-        plugin_shutdown(handle)
-        new_handle = plugin_init(new_config)
-        new_handle['restart'] = 'yes'
-        _LOGGER.info("Restarting HTTP south plugin due to change in configuration keys [{}]".format(', '.join(diff)))
-    else:
-        new_handle = copy.deepcopy(new_config)
-        new_handle['restart'] = 'no'
+    # plugin_init
+    new_handle = plugin_init(new_config)
+
+    # plugin_start
+    plugin_start(new_handle)
+
     return new_handle
 
 
 def _plugin_stop(handle):
     _LOGGER.info('Stopping South HTTP plugin.')
+    global loop
     try:
         app = handle['app']
         handler = handle['handler']
         server = handle['server']
-
         if server:
             server.close()
-            asyncio.ensure_future(server.wait_closed())
-            asyncio.ensure_future(app.shutdown())
-            asyncio.ensure_future(handler.shutdown(60.0))
-            asyncio.ensure_future(app.cleanup())
+            asyncio.ensure_future(server.wait_closed(), loop=loop)
+            asyncio.ensure_future(app.shutdown(), loop=loop)
+            asyncio.ensure_future(handler.shutdown(60.0), loop=loop)
+            asyncio.ensure_future(app.cleanup(), loop=loop)
+        loop.stop()
     except Exception as e:
         _LOGGER.exception(str(e))
         raise
@@ -214,6 +225,19 @@ def plugin_shutdown(handle):
     """
     _plugin_stop(handle)
     _LOGGER.info('South HTTP plugin shut down.')
+
+
+def plugin_register_ingest(handle, callback, ingest_ref):
+    """Required plugin interface component to communicate to South C server
+
+    Args:
+        handle: handle returned by the plugin initialisation call
+        callback: C opaque object required to passed back to C->ingest method
+        ingest_ref: C opaque object required to passed back to C->ingest method
+    """
+    global c_callback, c_ingest_ref
+    c_callback = callback
+    c_ingest_ref = ingest_ref
 
 
 def get_certificate(cert_name):
@@ -265,10 +289,6 @@ class HttpSouthIngest(object):
         """
         message = {'result': 'success'}
         try:
-            if not Ingest.is_available():
-                message = {'busy': True}
-                raise web.HTTPServiceUnavailable(reason=message)
-
             try:
                 payload_block = await request.json()
             except Exception:
@@ -297,14 +317,17 @@ class HttpSouthIngest(object):
                 if not isinstance(readings, dict):
                     raise ValueError('readings must be a dictionary')
 
-                await Ingest.add_readings(asset=asset, timestamp=timestamp, key=key, readings=readings)
-
+                data = {
+                    'asset': asset,
+                    'timestamp': timestamp,
+                    'key': key,
+                    'readings': readings
+                }
+                async_ingest.ingest_callback(c_callback, c_ingest_ref, data)
         except (KeyError, ValueError, TypeError) as e:
-            Ingest.increment_discarded_readings()
             _LOGGER.exception("%d: %s", web.HTTPBadRequest.status_code, e)
             raise web.HTTPBadRequest(reason=e)
         except Exception as ex:
-            Ingest.increment_discarded_readings()
             _LOGGER.exception("%d: %s", web.HTTPInternalServerError.status_code, str(ex))
             raise web.HTTPInternalServerError(reason=str(ex))
 
