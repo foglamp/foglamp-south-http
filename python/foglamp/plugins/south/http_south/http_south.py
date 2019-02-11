@@ -29,6 +29,7 @@ _LOGGER = logger.setup(__name__, level=logging.INFO)
 c_callback = None
 c_ingest_ref = None
 loop = None
+t = None
 _FOGLAMP_DATA = os.getenv("FOGLAMP_DATA", default=None)
 _FOGLAMP_ROOT = os.getenv("FOGLAMP_ROOT", default='/usr/local/foglamp')
 
@@ -118,7 +119,7 @@ def plugin_init(config):
 
 
 def plugin_start(data):
-    global loop
+    global loop, t
     _LOGGER.info("plugin_start called")
 
     loop = asyncio.new_event_loop()
@@ -325,7 +326,7 @@ class HttpSouthIngest(object):
                 }
                 async_ingest.ingest_callback(c_callback, c_ingest_ref, data)
         except (KeyError, ValueError, TypeError) as e:
-            _LOGGER.exception("%d: %s", web.HTTPBadRequest.status_code, e)
+            _LOGGER.exception("%d: %s", web.HTTPBadRequest.status_code, str(e))
             raise web.HTTPBadRequest(reason=e)
         except Exception as ex:
             _LOGGER.exception("%d: %s", web.HTTPInternalServerError.status_code, str(ex))
