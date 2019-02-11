@@ -16,7 +16,6 @@ from aiohttp import web
 from foglamp.common import logger
 from foglamp.common.web import middleware
 from foglamp.plugins.common import utils
-from foglamp.services.south.ingest import Ingest
 import async_ingest
 
 
