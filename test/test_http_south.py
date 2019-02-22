@@ -19,7 +19,7 @@ from python.foglamp.plugins.south.http_south import http_south
 from python.foglamp.plugins.south.http_south.http_south import HttpSouthIngest, Ingest, _DEFAULT_CONFIG as config
 
 __author__ = "Amarendra K Sinha"
-__copyright__ = "Copyright (c) 2017 OSIsoft, LLC"
+__copyright__ = "Copyright (c) 2017 Dianomic Systems"
 __license__ = "Apache 2.0"
 __version__ = "${VERSION}"
 
@@ -77,7 +77,7 @@ def mock_request(data, loop):
 def test_plugin_info():
     assert http_south.plugin_info() == {
         'name': 'http_south',
-        'version': '1.0',
+        'version': '1.5.0',
         'mode': 'async',
         'type': 'south',
         'interface': '1.0',

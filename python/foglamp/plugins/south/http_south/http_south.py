@@ -10,21 +10,25 @@ import copy
 import os
 import ssl
 import logging
-
+from threading import Thread
 from aiohttp import web
 
 from foglamp.common import logger
 from foglamp.common.web import middleware
 from foglamp.plugins.common import utils
 from foglamp.services.south.ingest import Ingest
+import async_ingest
+
 
 __author__ = "Amarendra K Sinha"
-__copyright__ = "Copyright (c) 2017 OSIsoft, LLC"
+__copyright__ = "Copyright (c) 2017 Dianomic Systems"
 __license__ = "Apache 2.0"
 __version__ = "${VERSION}"
 
 _LOGGER = logger.setup(__name__, level=logging.INFO)
-
+c_callback = None
+c_ingest_ref = None
+loop = None
 _FOGLAMP_DATA = os.getenv("FOGLAMP_DATA", default=None)
 _FOGLAMP_ROOT = os.getenv("FOGLAMP_ROOT", default='/usr/local/foglamp')
 
@@ -32,52 +36,71 @@ _CONFIG_CATEGORY_NAME = 'HTTP_SOUTH'
 _CONFIG_CATEGORY_DESCRIPTION = 'South Plugin HTTP Listener'
 _DEFAULT_CONFIG = {
     'plugin': {
-         'description': 'HTTP South Plugin',
-         'type': 'string',
-         'default': 'http_south'
+        'description': 'HTTP Listener South Plugin',
+        'type': 'string',
+        'default': 'http_south',
+        'readonly': 'true'
+    },
+    'host': {
+        'description': 'Address to accept data on',
+        'type': 'string',
+        'default': '0.0.0.0',
+        'order': '1',
+        'displayName': 'Host'
     },
     'port': {
         'description': 'Port to listen on',
         'type': 'integer',
         'default': '6683',
-    },
-    'httpsPort': {
-        'description': 'Port to accept HTTPS connections on',
-        'type': 'integer',
-        'default': '6684'
-    },
-    'enableHttp': {
-        'description': 'Enable HTTP (Set false to use HTTPS)',
-        'type': 'boolean',
-        'default': 'true'
-    },
-    'certificateName': {
-        'description': 'Certificate file name',
-        'type': 'string',
-        'default': 'foglamp'
-    },
-
-    'host': {
-        'description': 'Address to accept data on',
-        'type': 'string',
-        'default': '0.0.0.0',
+        'order': '2',
+        'displayName': 'Port'
     },
     'uri': {
         'description': 'URI to accept data on',
         'type': 'string',
         'default': 'sensor-reading',
+        'order': '3',
+        'displayName': 'URI'
+    },
+    'assetNamePrefix': {
+        'description': 'Asset name prefix',
+        'type': 'string',
+        'default': 'http-',
+        'order': '4',
+        'displayName': 'Asset Name Prefix'
+    },
+    'enableHttp': {
+        'description': 'Enable HTTP (Set false to use HTTPS)',
+        'type': 'boolean',
+        'default': 'true',
+        'order': '5',
+        'displayName': 'Enable Http'
+    },
+    'httpsPort': {
+        'description': 'Port to accept HTTPS connections on',
+        'type': 'integer',
+        'default': '6684',
+        'order': '6',
+        'displayName': 'Https Port'
+    },
+    'certificateName': {
+        'description': 'Certificate file name',
+        'type': 'string',
+        'default': 'foglamp',
+        'order': '7',
+        'displayName': 'Certificate Name'
     }
 }
 
 
 def plugin_info():
     return {
-            'name': 'HTTP South Listener',
-            'version': '1.0',
-            'mode': 'async',
-            'type': 'south',
-            'interface': '1.0',
-            'config': _DEFAULT_CONFIG
+        'name': 'HTTP South Listener',
+        'version': '1.5.0',
+        'mode': 'async',
+        'type': 'south',
+        'interface': '1.0',
+        'config': _DEFAULT_CONFIG
     }
 
 
@@ -90,21 +113,24 @@ def plugin_init(config):
         handle: JSON object to be used in future calls to the plugin
     Raises:
     """
-    handle = config
+    handle = copy.deepcopy(config)
     return handle
 
 
 def plugin_start(data):
+    global loop
+    _LOGGER.info("plugin_start called")
+
+    loop = asyncio.new_event_loop()
     try:
         host = data['host']['value']
         port = data['port']['value']
         uri = data['uri']['value']
 
-        loop = asyncio.get_event_loop()
-
-        app = web.Application(middlewares=[middleware.error_middleware])
-        app.router.add_route('POST', '/{}'.format(uri), HttpSouthIngest.render_post)
-        handler = app.make_handler()
+        http_south_ingest = HttpSouthIngest(config=data)
+        app = web.Application(middlewares=[middleware.error_middleware], loop=loop)
+        app.router.add_route('POST', '/{}'.format(uri), http_south_ingest.render_post)
+        handler = app.make_handler(loop=loop)
 
         # SSL context
         ssl_ctx = None
@@ -112,14 +138,14 @@ def plugin_start(data):
         is_https = True if data['enableHttp']['value'] == 'false' else False
         if is_https:
             port = data['httpsPort']['value']
-            cert_name =  data['certificateName']['value']
+            cert_name = data['certificateName']['value']
             ssl_ctx = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
             cert, key = get_certificate(cert_name)
             _LOGGER.info('Loading TLS certificate %s and key %s', cert, key)
             ssl_ctx.load_cert_chain(cert, key)
 
         server_coro = loop.create_server(handler, host, port, ssl=ssl_ctx)
-        future = asyncio.ensure_future(server_coro)
+        future = asyncio.ensure_future(server_coro, loop=loop)
 
         data['app'] = app
         data['handler'] = handler
@@ -130,8 +156,14 @@ def plugin_start(data):
             """ <Server sockets=
             [<socket.socket fd=17, family=AddressFamily.AF_INET, type=2049,proto=6, laddr=('0.0.0.0', 6683)>]>"""
             data['server'] = f.result()
-
         future.add_done_callback(f_callback)
+
+        def run():
+            global loop
+            loop.run_forever()
+
+        t = Thread(target=run)
+        t.start()
     except Exception as e:
         _LOGGER.exception(str(e))
 
@@ -149,36 +181,35 @@ def plugin_reconfigure(handle, new_config):
         new_handle: new handle to be used in the future calls
     Raises:
     """
+    global loop
     _LOGGER.info("Old config for HTTP south plugin {} \n new config {}".format(handle, new_config))
 
-    # Find diff between old config and new config
-    diff = utils.get_diff(handle, new_config)
+    # plugin_shutdown
+    plugin_shutdown(handle)
 
-    # Plugin should re-initialize and restart if key configuration is changed
-    if 'port' in diff or 'httpsPort' in diff or 'certificateName' in diff or 'enableHttp' in diff or 'host' in diff:
-        _plugin_stop(handle)
-        new_handle = plugin_init(new_config)
-        new_handle['restart'] = 'yes'
-        _LOGGER.info("Restarting HTTP south plugin due to change in configuration keys [{}]".format(', '.join(diff)))
-    else:
-        new_handle = copy.deepcopy(new_config)
-        new_handle['restart'] = 'no'
+    # plugin_init
+    new_handle = plugin_init(new_config)
+
+    # plugin_start
+    plugin_start(new_handle)
+
     return new_handle
 
 
 def _plugin_stop(handle):
     _LOGGER.info('Stopping South HTTP plugin.')
+    global loop
     try:
         app = handle['app']
         handler = handle['handler']
         server = handle['server']
-
         if server:
             server.close()
-            asyncio.ensure_future(server.wait_closed())
-            asyncio.ensure_future(app.shutdown())
-            asyncio.ensure_future(handler.shutdown(60.0))
-            asyncio.ensure_future(app.cleanup())
+            asyncio.ensure_future(server.wait_closed(), loop=loop)
+            asyncio.ensure_future(app.shutdown(), loop=loop)
+            asyncio.ensure_future(handler.shutdown(60.0), loop=loop)
+            asyncio.ensure_future(app.cleanup(), loop=loop)
+        loop.stop()
     except Exception as e:
         _LOGGER.exception(str(e))
         raise
@@ -196,9 +227,20 @@ def plugin_shutdown(handle):
     _LOGGER.info('South HTTP plugin shut down.')
 
 
+def plugin_register_ingest(handle, callback, ingest_ref):
+    """Required plugin interface component to communicate to South C server
+
+    Args:
+        handle: handle returned by the plugin initialisation call
+        callback: C opaque object required to passed back to C->ingest method
+        ingest_ref: C opaque object required to passed back to C->ingest method
+    """
+    global c_callback, c_ingest_ref
+    c_callback = callback
+    c_ingest_ref = ingest_ref
+
 
 def get_certificate(cert_name):
-
     if _FOGLAMP_DATA:
         certs_dir = os.path.expanduser(_FOGLAMP_DATA + '/etc/certs')
     else:
@@ -217,11 +259,14 @@ def get_certificate(cert_name):
 
     return cert, key
 
+
 class HttpSouthIngest(object):
     """Handles incoming sensor readings from HTTP Listener"""
 
-    @staticmethod
-    async def render_post(request):
+    def __init__(self, config):
+        self.config_data = config
+
+    async def render_post(self, request):
         """Store sensor readings from http_south to FogLAMP
 
         Args:
@@ -242,13 +287,8 @@ class HttpSouthIngest(object):
             curl -X POST http://localhost:6683/sensor-reading -d '[{"timestamp": "2017-01-02T01:02:03.23232Z-05:00",
                 "asset": "pump1", "key": "80a43623-ebe5-40d6-8d80-3f892da9b3b4", "readings": {"humidity": 0.0, "temperature": -40.0}}]'
         """
-
         message = {'result': 'success'}
         try:
-            if not Ingest.is_available():
-                message = {'busy': True}
-                raise web.HTTPServiceUnavailable(reason=message)
-
             try:
                 payload_block = await request.json()
             except Exception:
@@ -258,14 +298,13 @@ class HttpSouthIngest(object):
                 raise ValueError('Payload block must be a valid list')
 
             for payload in payload_block:
-                asset = payload['asset']
+                asset = "{}{}".format(self.config_data['assetNamePrefix']['value'], payload['asset'])
                 timestamp = payload['timestamp']
                 key = payload['key']
 
                 # HOTFIX: To ingest readings sent from foglamp sending process
                 if not timestamp.rfind("+") == -1:
                     timestamp = timestamp + ":00"
-
 
                 # readings or sensor_values are optional
                 try:
@@ -278,14 +317,17 @@ class HttpSouthIngest(object):
                 if not isinstance(readings, dict):
                     raise ValueError('readings must be a dictionary')
 
-                await Ingest.add_readings(asset=asset, timestamp=timestamp, key=key, readings=readings)
-            
+                data = {
+                    'asset': asset,
+                    'timestamp': timestamp,
+                    'key': key,
+                    'readings': readings
+                }
+                async_ingest.ingest_callback(c_callback, c_ingest_ref, data)
         except (KeyError, ValueError, TypeError) as e:
-            Ingest.increment_discarded_readings()
             _LOGGER.exception("%d: %s", web.HTTPBadRequest.status_code, e)
             raise web.HTTPBadRequest(reason=e)
         except Exception as ex:
-            Ingest.increment_discarded_readings()
             _LOGGER.exception("%d: %s", web.HTTPInternalServerError.status_code, str(ex))
             raise web.HTTPInternalServerError(reason=str(ex))
 
