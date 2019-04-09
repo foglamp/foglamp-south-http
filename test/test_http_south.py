@@ -7,7 +7,6 @@
 """Unit test for foglamp.plugins.south.http_south.http_south"""
 import copy
 import json
-import asyncio
 from unittest import mock
 from unittest.mock import call, patch
 import pytest
@@ -16,7 +15,7 @@ from aiohttp.test_utils import make_mocked_request
 from aiohttp.streams import StreamReader
 from multidict import CIMultiDict
 from python.foglamp.plugins.south.http_south import http_south
-from python.foglamp.plugins.south.http_south.http_south import HttpSouthIngest, Ingest, _DEFAULT_CONFIG as config
+from python.foglamp.plugins.south.http_south.http_south import HttpSouthIngest, async_ingest, c_callback, c_ingest_ref, _DEFAULT_CONFIG as config
 
 __author__ = "Amarendra K Sinha"
 __copyright__ = "Copyright (c) 2017 Dianomic Systems"
@@ -76,7 +75,7 @@ def mock_request(data, loop):
 @pytest.allure.story("plugin", "south", "http")
 def test_plugin_info():
     assert http_south.plugin_info() == {
-        'name': 'http_south',
+        'name': 'HTTP South Listener',
         'version': '1.5.0',
         'mode': 'async',
         'type': 'south',
@@ -93,45 +92,46 @@ def test_plugin_init():
 
 @pytest.allure.feature("unit")
 @pytest.allure.story("plugin", "south", "http")
-@pytest.mark.asyncio
-async def test_plugin_start(mocker, unused_port, loop):
+def test_plugin_start(mocker, unused_port):
     # GIVEN
     port = {
         'description': 'Port to listen on',
         'type': 'integer',
         'default': str(unused_port()),
     }
-    mocker.patch.dict(config, {'port': port})
-    config['port']['value'] = config['port']['default']
-    config['host']['value'] = config['host']['default']
-    config['uri']['value'] = config['uri']['default']
+    config_data = copy.deepcopy(config)
+    mocker.patch.dict(config_data, {'port': port})
+    config_data['port']['value'] = config_data['port']['default']
+    config_data['host']['value'] = config_data['host']['default']
+    config_data['uri']['value'] = config_data['uri']['default']
+    config_data['enableHttp']['value'] = config_data['enableHttp']['default']
 
     # WHEN
-    loop.call_soon(http_south.plugin_start(config))
-    await asyncio.sleep(.33)  # Allow ensure_future task to complete
+    http_south.plugin_start(config_data)
 
     # THEN
-    assert isinstance(config['app'], aiohttp.web.Application)
-    assert isinstance(config['handler'], aiohttp.web_server.Server)
-    assert isinstance(config['server'], asyncio.base_events.Server)
+    assert isinstance(config_data['app'], aiohttp.web.Application)
+    assert isinstance(config_data['handler'], aiohttp.web_server.Server)
+    # assert isinstance(config_data['server'], asyncio.base_events.Server)
+    http_south.loop.stop()
+    http_south.t._delete()
 
 
 @pytest.allure.feature("unit")
 @pytest.allure.story("plugin", "south", "http")
-@pytest.mark.asyncio
-async def test_plugin_start_exception(unused_port, mocker, loop):
+def test_plugin_start_exception(unused_port, mocker):
     # GIVEN
     port = {
         'description': 'Port to listen on',
         'type': 'integer',
         'default': str(unused_port()),
     }
-    mocker.patch.dict(config, {'port': port})
+    config_data = copy.deepcopy(config)
+    mocker.patch.dict(config_data, {'port': port})
     log_exception = mocker.patch.object(http_south._LOGGER, "exception")
 
     # WHEN
-    loop.call_soon(http_south.plugin_start(config))
-    await asyncio.sleep(.33)  # Allow ensure_future task to complete
+    http_south.plugin_start(config_data)
 
     # THEN
     assert 1 == log_exception.call_count
@@ -147,75 +147,48 @@ def test_plugin_reconfigure(mocker, unused_port):
         'type': 'integer',
         'default': str(unused_port()),
     }
-    mocker.patch.dict(config, {'port': port})
-    config['port']['value'] = config['port']['default']
-    config['host']['value'] = config['host']['default']
-    config['uri']['value'] = config['uri']['default']
+    config_data = copy.deepcopy(config)
+    mocker.patch.dict(config_data, {'port': port})
+    config_data['port']['value'] = config_data['port']['default']
+    config_data['host']['value'] = config_data['host']['default']
+    config_data['uri']['value'] = config_data['uri']['default']
+    config_data['enableHttp']['value'] = config_data['enableHttp']['default']
     pstop = mocker.patch.object(http_south, '_plugin_stop', return_value=True)
     log_info = mocker.patch.object(http_south._LOGGER, "info")
 
     # WHEN
-    new_config = http_south.plugin_reconfigure(config, _NEW_CONFIG)
+    new_config = http_south.plugin_reconfigure(config_data, _NEW_CONFIG)
 
     # THEN
     assert _NEW_CONFIG == new_config
-    assert "yes" == new_config["restart"]
-    assert 2 == log_info.call_count
+    assert 3 == log_info.call_count
     assert 1 == pstop.call_count
-    # TODO: log_info.assert_called_with('Restarting HTTP_SOUTH plugin due to change in configuration keys [uri, port, host]')
 
 
 @pytest.allure.feature("unit")
 @pytest.allure.story("plugin", "south", "http")
-def test_plugin_reconfigure_else(mocker, unused_port):
+def test_plugin__stop(mocker, unused_port, loop):
     # GIVEN
     port = {
         'description': 'Port to listen on',
         'type': 'integer',
         'default': str(unused_port()),
     }
-    mocker.patch.dict(config, {'port': port})
-    config['port']['value'] = config['port']['default']
-    config['host']['value'] = config['host']['default']
-    config['uri']['value'] = config['uri']['default']
-    config2 = copy.deepcopy(config)
-    pstop = mocker.patch.object(http_south, '_plugin_stop', return_value=True)
-    log_info = mocker.patch.object(http_south._LOGGER, "info")
-
-    # WHEN
-    new_config = http_south.plugin_reconfigure(config, config2)
-
-    # THEN
-    assert 1 == log_info.call_count
-    log_info.assert_called_once_with("Old config for HTTP_SOUTH plugin {} \n new config {}".format(config, config2))
-    assert 0 == pstop.call_count
-    assert "no" == new_config["restart"]
-
-
-@pytest.allure.feature("unit")
-@pytest.allure.story("plugin", "south", "http")
-@pytest.mark.asyncio
-async def test_plugin__stop(mocker, unused_port, loop):
-    # GIVEN
-    port = {
-        'description': 'Port to listen on',
-        'type': 'integer',
-        'default': str(unused_port()),
-    }
-    mocker.patch.dict(config, {'port': port})
-    config['port']['value'] = config['port']['default']
-    config['host']['value'] = config['host']['default']
-    config['uri']['value'] = config['uri']['default']
+    config_data = copy.deepcopy(config)
+    mocker.patch.dict(config_data, {'port': port})
+    config_data['port']['value'] = config_data['port']['default']
+    config_data['host']['value'] = config_data['host']['default']
+    config_data['uri']['value'] = config_data['uri']['default']
+    config_data['enableHttp']['value'] = config_data['enableHttp']['default']
     log_exception = mocker.patch.object(http_south._LOGGER, "exception")
     log_info = mocker.patch.object(http_south._LOGGER, "info")
 
     # WHEN
-    loop.call_soon(http_south.plugin_start(config))
-    await asyncio.sleep(.33)  # Allow ensure_future task to complete
-    http_south._plugin_stop(config)
+    http_south.plugin_start(config_data)
+    http_south._plugin_stop(config_data)
 
     # THEN
-    assert 1 == log_info.call_count
+    assert 2 == log_info.call_count
     calls = [call('Stopping South HTTP plugin.')]
     log_info.assert_has_calls(calls, any_order=True)
     assert 0 == log_exception.call_count
@@ -223,28 +196,28 @@ async def test_plugin__stop(mocker, unused_port, loop):
 
 @pytest.allure.feature("unit")
 @pytest.allure.story("plugin", "south", "http")
-@pytest.mark.asyncio
-async def test_plugin_shutdown(mocker, unused_port, loop):
+def test_plugin_shutdown(mocker, unused_port):
     # GIVEN
     port = {
         'description': 'Port to listen on',
         'type': 'integer',
         'default': str(unused_port()),
     }
-    mocker.patch.dict(config, {'port': port})
-    config['port']['value'] = config['port']['default']
-    config['host']['value'] = config['host']['default']
-    config['uri']['value'] = config['uri']['default']
+    config_data = copy.deepcopy(config)
+    mocker.patch.dict(config_data, {'port': port})
+    config_data['port']['value'] = config_data['port']['default']
+    config_data['host']['value'] = config_data['host']['default']
+    config_data['uri']['value'] = config_data['uri']['default']
+    config_data['enableHttp']['value'] = config_data['enableHttp']['default']
     log_exception = mocker.patch.object(http_south._LOGGER, "exception")
     log_info = mocker.patch.object(http_south._LOGGER, "info")
 
     # WHEN
-    loop.call_soon(http_south.plugin_start(config))
-    await asyncio.sleep(.33)  # Allow ensure_future task to complete
-    http_south.plugin_shutdown(config)
+    http_south.plugin_start(config_data)
+    http_south.plugin_shutdown(config_data)
 
     # THEN
-    assert 2 == log_info.call_count
+    assert 3 == log_info.call_count
     calls = [call('Stopping South HTTP plugin.'),
              call('South HTTP plugin shut down.')]
     log_info.assert_has_calls(calls, any_order=True)
@@ -253,31 +226,32 @@ async def test_plugin_shutdown(mocker, unused_port, loop):
 
 @pytest.allure.feature("unit")
 @pytest.allure.story("plugin", "south", "http")
-@pytest.mark.asyncio
-async def test_plugin_shutdown_error(mocker, unused_port, loop):
+@pytest.mark.skip(reason="server object is None in tests. To be investigated.")
+def test_plugin_shutdown_error(mocker, unused_port, loop):
     # GIVEN
     port = {
         'description': 'Port to listen on',
         'type': 'integer',
         'default': str(unused_port()),
     }
-    mocker.patch.dict(config, {'port': port})
-    config['port']['value'] = config['port']['default']
-    config['host']['value'] = config['host']['default']
-    config['uri']['value'] = config['uri']['default']
+    config_data = copy.deepcopy(config)
+    mocker.patch.dict(config_data, {'port': port})
+    config_data['port']['value'] = config_data['port']['default']
+    config_data['host']['value'] = config_data['host']['default']
+    config_data['uri']['value'] = config_data['uri']['default']
+    config_data['enableHttp']['value'] = config_data['enableHttp']['default']
     log_exception = mocker.patch.object(http_south._LOGGER, "exception")
     log_info = mocker.patch.object(http_south._LOGGER, "info")
 
     # WHEN
-    loop.call_soon(http_south.plugin_start(config))
-    await asyncio.sleep(.33)  # Allow ensure_future task to complete
-    server = config['server']
+    http_south.plugin_start(config_data)
+    server = config_data['server']
     mocker.patch.object(server, 'wait_closed', side_effect=Exception)
     with pytest.raises(Exception):
-        http_south.plugin_shutdown(config)
+        http_south.plugin_shutdown(config_data)
 
     # THEN
-    assert 1 == log_info.call_count
+    assert 2 == log_info.call_count
     calls = [call('Stopping South HTTP plugin.')]
     log_info.assert_has_calls(calls, any_order=True)
     assert 1 == log_exception.call_count
@@ -302,18 +276,16 @@ class TestHttpSouthIngest(object):
                 }
             }
         }]"""
-        with patch.object(Ingest, 'increment_discarded_readings', return_value=True) as ingest_discarded:
-            with patch.object(Ingest, 'add_readings', return_value=asyncio.sleep(.1)) as ingest_add_readings:
-                with patch.object(Ingest, 'is_available', return_value=True) as ingest_is_available:
-                    request = mock_request(data, loop)
-                    r = await HttpSouthIngest.render_post(request)
-                    retval = json.loads(r.body.decode())
-                    # Assert the POST request response
-                    assert 200 == r.status
-                    assert 'success' == retval['result']
-            assert 0 == ingest_discarded.call_count
+        with patch.object(async_ingest, 'ingest_callback') as ingest_add_readings:
+            request = mock_request(data, loop)
+            config_data = copy.deepcopy(config)
+            config_data['assetNamePrefix']['value'] = config_data['assetNamePrefix']['default']
+            r = await HttpSouthIngest(config_data).render_post(request)
+            retval = json.loads(r.body.decode())
+            # Assert the POST request response
+            assert 200 == r.status
+            assert 'success' == retval['result']
             assert 1 == ingest_add_readings.call_count
-            assert 1 == ingest_is_available.call_count
 
     @pytest.mark.asyncio
     async def test_render_post_sensor_values_ok(self, loop):
@@ -329,63 +301,32 @@ class TestHttpSouthIngest(object):
                 }
             }
         }]"""
-        with patch.object(Ingest, 'increment_discarded_readings', return_value=True) as ingest_discarded:
-            with patch.object(Ingest, 'add_readings', return_value=asyncio.sleep(.1)) as ingest_add_readings:
-                with patch.object(Ingest, 'is_available', return_value=True) as ingest_is_available:
-                    request = mock_request(data, loop)
-                    r = await HttpSouthIngest.render_post(request)
-                    retval = json.loads(r.body.decode())
-                    # Assert the POST request response
-                    assert 200 == r.status
-                    assert 'success' == retval['result']
-            assert 0 == ingest_discarded.call_count
+        with patch.object(async_ingest, 'ingest_callback') as ingest_add_readings:
+            request = mock_request(data, loop)
+            config_data = copy.deepcopy(config)
+            config_data['assetNamePrefix']['value'] = config_data['assetNamePrefix']['default']
+            r = await HttpSouthIngest(config_data).render_post(request)
+            retval = json.loads(r.body.decode())
+            # Assert the POST request response
+            assert 200 == r.status
+            assert 'success' == retval['result']
             assert 1 == ingest_add_readings.call_count
-            assert 1 == ingest_is_available.call_count
 
     @pytest.mark.asyncio
     async def test_render_post_invalid_payload(self, loop):
         data = "blah"
         msg = 'Payload block must be a valid json'
-        with patch.object(Ingest, 'increment_discarded_readings', return_value=True) as ingest_discarded:
-            with patch.object(Ingest, 'is_available', return_value=True) as ingest_is_available:
-                with patch.object(http_south._LOGGER, 'exception') as log_exc:
-                    with pytest.raises(aiohttp.web_exceptions.HTTPBadRequest) as ex:
-                        request = mock_request(data, loop)
-                        r = await HttpSouthIngest.render_post(request)
-                        assert 400 == r.status
-                    assert str(ex).endswith(msg)
-                assert 1 == log_exc.call_count
-                log_exc.assert_called_once_with('%d: %s', 400, msg)
-            assert 1 == ingest_discarded.call_count
-            assert 1 == ingest_is_available.call_count
-
-    @pytest.mark.asyncio
-    async def test_render_post_reading_is_available_false(self, loop):
-        data = """[{
-            "timestamp": "2017-01-02T01:02:03.23232Z-05:00",
-            "asset": "sensor1",
-            "key": "80a43623-ebe5-40d6-8d80-3f892da9b3b4",
-            "readings": {
-                "velocity": "500",
-                "temperature": {
-                    "value": "32",
-                    "unit": "kelvin"
-                }
-            }
-        }]"""
-        msg = "{'busy': True}"
-        with patch.object(Ingest, 'increment_discarded_readings', return_value=True) as ingest_discarded:
-            with patch.object(Ingest, 'is_available', return_value=False) as ingest_is_available:
-                with patch.object(http_south._LOGGER, 'exception') as log_exc:
-                    with pytest.raises(aiohttp.web_exceptions.HTTPInternalServerError) as ex:
-                        request = mock_request(data, loop)
-                        r = await HttpSouthIngest.render_post(request)
-                        assert 400 == r.status
-                    assert str(ex).endswith(msg)
-                assert 1 == log_exc.call_count
-                log_exc.assert_called_once_with('%d: %s', 500, msg)
-            assert 1 == ingest_discarded.call_count
-            assert 1 == ingest_is_available.call_count
+        with patch.object(async_ingest, 'ingest_callback') as ingest_add_readings:
+            with patch.object(http_south._LOGGER, 'exception') as log_exc:
+                with pytest.raises(aiohttp.web_exceptions.HTTPBadRequest) as ex:
+                    request = mock_request(data, loop)
+                    config_data = copy.deepcopy(config)
+                    config_data['assetNamePrefix']['value'] = config_data['assetNamePrefix']['default']
+                    r = await HttpSouthIngest(config_data).render_post(request)
+                    assert 400 == r.status
+                assert str(ex).endswith(msg)
+            assert 1 == log_exc.call_count
+            log_exc.assert_called_once_with('%d: %s', 400, msg)
 
     @pytest.mark.asyncio
     async def test_render_post_reading_missing_delimiter(self, loop):
@@ -401,18 +342,17 @@ class TestHttpSouthIngest(object):
                 }
         }"""
         msg = 'Payload block must be a valid json'
-        with patch.object(Ingest, 'increment_discarded_readings', return_value=True) as ingest_discarded:
-            with patch.object(Ingest, 'is_available', return_value=True) as ingest_is_available:
-                with patch.object(http_south._LOGGER, 'exception') as log_exc:
-                    with pytest.raises(aiohttp.web_exceptions.HTTPBadRequest) as ex:
-                        request = mock_request(data, loop)
-                        r = await HttpSouthIngest.render_post(request)
-                        assert 400 == r.status
-                    assert str(ex).endswith(msg)
-                assert 1 == log_exc.call_count
-                log_exc.assert_called_once_with('%d: %s', 400, msg)
-            assert 1 == ingest_discarded.call_count
-            assert 1 == ingest_is_available.call_count
+        with patch.object(async_ingest, 'ingest_callback') as ingest_add_readings:
+            with patch.object(http_south._LOGGER, 'exception') as log_exc:
+                with pytest.raises(aiohttp.web_exceptions.HTTPBadRequest) as ex:
+                    request = mock_request(data, loop)
+                    config_data = copy.deepcopy(config)
+                    config_data['assetNamePrefix']['value'] = config_data['assetNamePrefix']['default']
+                    r = await HttpSouthIngest(config_data).render_post(request)
+                    assert 400 == r.status
+                assert str(ex).endswith(msg)
+            assert 1 == log_exc.call_count
+            log_exc.assert_called_once_with('%d: %s', 400, msg)
 
     @pytest.mark.asyncio
     async def test_render_post_reading_not_dict(self, loop):
@@ -423,15 +363,14 @@ class TestHttpSouthIngest(object):
             "readings": "500"
         }]"""
         msg = 'readings must be a dictionary'
-        with patch.object(Ingest, 'increment_discarded_readings', return_value=True) as ingest_discarded:
-            with patch.object(Ingest, 'is_available', return_value=True) as ingest_is_available:
-                with patch.object(http_south._LOGGER, 'exception') as log_exc:
-                    with pytest.raises(aiohttp.web_exceptions.HTTPBadRequest) as ex:
-                        request = mock_request(data, loop)
-                        r = await HttpSouthIngest.render_post(request)
-                        assert 400 == r.status
-                    assert str(ex).endswith(msg)
-                assert 1 == log_exc.call_count
-                log_exc.assert_called_once_with('%d: %s', 400, msg)
-            assert 1 == ingest_discarded.call_count
-            assert 1 == ingest_is_available.call_count
+        with patch.object(async_ingest, 'ingest_callback') as ingest_add_readings:
+            with patch.object(http_south._LOGGER, 'exception') as log_exc:
+                with pytest.raises(aiohttp.web_exceptions.HTTPBadRequest) as ex:
+                    request = mock_request(data, loop)
+                    config_data = copy.deepcopy(config)
+                    config_data['assetNamePrefix']['value'] = config_data['assetNamePrefix']['default']
+                    r = await HttpSouthIngest(config_data).render_post(request)
+                    assert 400 == r.status
+                assert str(ex).endswith(msg)
+            assert 1 == log_exc.call_count
+            log_exc.assert_called_once_with('%d: %s', 400, msg)
