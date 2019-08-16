@@ -96,7 +96,7 @@ _DEFAULT_CONFIG = {
 def plugin_info():
     return {
         'name': 'HTTP South Listener',
-        'version': '1.5.0',
+        'version': '1.7.0',
         'mode': 'async',
         'type': 'south',
         'interface': '1.0',
