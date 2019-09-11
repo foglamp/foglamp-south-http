@@ -1,5 +1,5 @@
 ==================
-foglamp-south-http
+fledge-south-http
 ==================
 
-FogLAMP South Plugin for http listener, Listen for the readings block payload
+Fledge South Plugin for http listener, Listen for the readings block payload

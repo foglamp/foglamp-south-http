@@ -1,10 +1,10 @@
 # -*- coding: utf-8 -*-
 
-# FOGLAMP_BEGIN
-# See: http://foglamp.readthedocs.io/
-# FOGLAMP_END
+# FLEDGE_BEGIN
+# See: http://fledge.readthedocs.io/
+# FLEDGE_END
 
-"""Unit test for foglamp.plugins.south.http_south.http_south"""
+"""Unit test for fledge.plugins.south.http_south.http_south"""
 import copy
 import json
 from unittest import mock
@@ -14,8 +14,8 @@ import aiohttp.web_exceptions
 from aiohttp.test_utils import make_mocked_request
 from aiohttp.streams import StreamReader
 from multidict import CIMultiDict
-from python.foglamp.plugins.south.http_south import http_south
-from python.foglamp.plugins.south.http_south.http_south import HttpSouthIngest, async_ingest, c_callback, c_ingest_ref, _DEFAULT_CONFIG as config
+from python.fledge.plugins.south.http_south import http_south
+from python.fledge.plugins.south.http_south.http_south import HttpSouthIngest, async_ingest, c_callback, c_ingest_ref, _DEFAULT_CONFIG as config
 
 __author__ = "Amarendra K Sinha"
 __copyright__ = "Copyright (c) 2017 Dianomic Systems"
@@ -260,7 +260,7 @@ def test_plugin_shutdown_error(mocker, unused_port, loop):
 @pytest.allure.feature("unit")
 @pytest.allure.story("services", "south", "ingest")
 class TestHttpSouthIngest(object):
-    """Unit tests foglamp.plugins.south.http_south.http_south.HttpSouthIngest
+    """Unit tests fledge.plugins.south.http_south.http_south.HttpSouthIngest
     """
     @pytest.mark.asyncio
     async def test_render_post_reading_ok(self, loop):

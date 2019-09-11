@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 
-# FOGLAMP_BEGIN
-# See: http://foglamp.readthedocs.io/
-# FOGLAMP_END
+# FLEDGE_BEGIN
+# See: http://fledge.readthedocs.io/
+# FLEDGE_END
 
 """HTTP Listener handler for sensor readings"""
 import asyncio
@@ -13,9 +13,9 @@ import logging
 from threading import Thread
 from aiohttp import web
 
-from foglamp.common import logger
-from foglamp.common.web import middleware
-from foglamp.plugins.common import utils
+from fledge.common import logger
+from fledge.common.web import middleware
+from fledge.plugins.common import utils
 import async_ingest
 
 
@@ -29,8 +29,8 @@ c_callback = None
 c_ingest_ref = None
 loop = None
 t = None
-_FOGLAMP_DATA = os.getenv("FOGLAMP_DATA", default=None)
-_FOGLAMP_ROOT = os.getenv("FOGLAMP_ROOT", default='/usr/local/foglamp')
+_FLEDGE_DATA = os.getenv("FLEDGE_DATA", default=None)
+_FLEDGE_ROOT = os.getenv("FLEDGE_ROOT", default='/usr/local/fledge')
 
 _CONFIG_CATEGORY_NAME = 'HTTP_SOUTH'
 _CONFIG_CATEGORY_DESCRIPTION = 'South Plugin HTTP Listener'
@@ -86,7 +86,7 @@ _DEFAULT_CONFIG = {
     'certificateName': {
         'description': 'Certificate file name',
         'type': 'string',
-        'default': 'foglamp',
+        'default': 'fledge',
         'order': '7',
         'displayName': 'Certificate Name'
     }
@@ -241,18 +241,18 @@ def plugin_register_ingest(handle, callback, ingest_ref):
 
 
 def get_certificate(cert_name):
-    if _FOGLAMP_DATA:
-        certs_dir = os.path.expanduser(_FOGLAMP_DATA + '/etc/certs')
+    if _FLEDGE_DATA:
+        certs_dir = os.path.expanduser(_FLEDGE_DATA + '/etc/certs')
     else:
-        certs_dir = os.path.expanduser(_FOGLAMP_ROOT + '/data/etc/certs')
+        certs_dir = os.path.expanduser(_FLEDGE_ROOT + '/data/etc/certs')
 
     cert = certs_dir + '/{}.cert'.format(cert_name)
     key = certs_dir + '/{}.key'.format(cert_name)
 
     if not os.path.isfile(cert) or not os.path.isfile(key):
         _LOGGER.warning("%s certificate files are missing. Hence using default certificate.", cert_name)
-        cert = certs_dir + '/foglamp.cert'
-        key = certs_dir + '/foglamp.key'
+        cert = certs_dir + '/fledge.cert'
+        key = certs_dir + '/fledge.key'
         if not os.path.isfile(cert) or not os.path.isfile(key):
             _LOGGER.error("Certificates are missing")
             raise RuntimeError
@@ -267,7 +267,7 @@ class HttpSouthIngest(object):
         self.config_data = config
 
     async def render_post(self, request):
-        """Store sensor readings from http_south to FogLAMP
+        """Store sensor readings from http_south to Fledge
 
         Args:
             request:
@@ -302,7 +302,7 @@ class HttpSouthIngest(object):
                 timestamp = payload['timestamp']
                 key = payload['key']
 
-                # HOTFIX: To ingest readings sent from foglamp sending process
+                # HOTFIX: To ingest readings sent from fledge sending process
                 if not timestamp.rfind("+") == -1:
                     timestamp = timestamp + ":00"
 
