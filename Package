@@ -1,8 +1,9 @@
 # A set of variables that define how we package this repository
 #
-plugin_name=http
+plugin_name=http_south
 plugin_type=south
-plugin_install_dirname=${plugin_name}_south
+plugin_install_dirname=${plugin_name}
+plugin_package_name=foglamp-${plugin_type}-http-${plugin_type}
 
 # Now build up the runtime requirements list. This has 3 components
 #   1. Generic packages we depend on in all architectures and package managers
@@ -13,7 +14,7 @@ requirements="foglamp"
 case "$arch" in
 	x86_64)
 		;;
-	armhf)
+	armv7l)
 		;;
 	aarch64)
 		;;
