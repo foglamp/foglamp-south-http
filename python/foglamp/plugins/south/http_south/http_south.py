@@ -278,14 +278,13 @@ class HttpSouthIngest(object):
                     [ {
                         "timestamp": "2017-01-02T01:02:03.23232Z-05:00",
                         "asset": "pump1",
-                        "key": "80a43623-ebe5-40d6-8d80-3f892da9b3b4",
                         "readings": {"humidity": 0.0, "temperature": -40.0}
                       },
                       ...
                     ]
         Example:
             curl -X POST http://localhost:6683/sensor-reading -d '[{"timestamp": "2017-01-02T01:02:03.23232Z-05:00",
-                "asset": "pump1", "key": "80a43623-ebe5-40d6-8d80-3f892da9b3b4", "readings": {"humidity": 0.0, "temperature": -40.0}}]'
+                "asset": "pump1", "readings": {"humidity": 0.0, "temperature": -40.0}}]'
         """
         message = {'result': 'success'}
         try:
@@ -300,7 +299,6 @@ class HttpSouthIngest(object):
             for payload in payload_block:
                 asset = "{}{}".format(self.config_data['assetNamePrefix']['value'], payload['asset'])
                 timestamp = payload['timestamp']
-                key = payload['key']
 
                 # HOTFIX: To ingest readings sent from foglamp sending process
                 if not timestamp.rfind("+") == -1:
@@ -320,7 +318,6 @@ class HttpSouthIngest(object):
                 data = {
                     'asset': asset,
                     'timestamp': timestamp,
-                    'key': key,
                     'readings': readings
                 }
                 async_ingest.ingest_callback(c_callback, c_ingest_ref, data)
